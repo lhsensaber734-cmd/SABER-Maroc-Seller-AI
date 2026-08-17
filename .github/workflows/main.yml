@@ -13,37 +13,53 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          mkdir project
-          unzip -q "$(find . -maxdepth 1 -name '*.zip' | head -1)" -d project
-          echo "Extracted:"
-          find project -maxdepth 3 -type f | head -100
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "❌ ZIP project not found"
+            exit 1
+          fi
+
+          mkdir -p project
+          unzip -q "$ZIP_FILE" -d project
+
+          echo "✅ Project extracted"
+          find project -maxdepth 3 -type f -name "gradlew" -print
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Find Gradle project
         run: |
-          GRADLEW=$(find project -name gradlew -type f | head -1)
+          GRADLEW=$(find project -type f -name "gradlew" | head -1)
+
           if [ -z "$GRADLEW" ]; then
-            echo "gradlew not found"
+            echo "❌ gradlew not found"
+            echo "The uploaded ZIP does not contain an Android Gradle project."
             exit 1
           fi
+
           chmod +x "$GRADLEW"
-          echo "GRADLEW=$GRADLEW" >> $GITHUB_ENV
+
+          GRADLE_DIR=$(dirname "$GRADLEW")
+          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
+
+          echo "✅ Gradle project found: $GRADLE_DIR"
 
       - name: Build APK
         run: |
-          cd "$(dirname "$GRADLEW")"
-          ./gradlew assembleDebug
+          cd "$GRADLE_DIR"
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SABER-Maroc-Seller-AI-APK
-          path: '**/build/outputs/apk/**/*.apk'
+          path: "**/build/outputs/apk/**/*.apk"
+          if-no-files-found: error
