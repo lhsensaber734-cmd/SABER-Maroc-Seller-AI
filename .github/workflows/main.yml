@@ -25,6 +25,8 @@ jobs:
 
           echo "✅ Project extracted"
 
+      - name: Find Android project
+        run: |
           SETTINGS=$(find project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -1)
 
           if [ -z "$SETTINGS" ]; then
@@ -43,19 +45,41 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "9.3.1"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create debug keystore
+        run: |
+          cd "$PROJECT_DIR"
+
+          if [ ! -f debug.keystore ]; then
+            keytool -genkeypair \
+              -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+          echo "✅ Debug keystore ready"
+
+      - name: Make Gradle executable
+        run: |
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
 
       - name: Build APK
         run: |
           cd "$PROJECT_DIR"
-          gradle assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SABER-Maroc-Seller-AI-APK
-          path: "**/build/outputs/apk/**/*.apk"
+          path: "${{ env.PROJECT_DIR }}/**/build/outputs/apk/**/*.apk"
           if-no-files-found: error
