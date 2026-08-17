@@ -24,7 +24,18 @@ jobs:
           unzip -q "$ZIP_FILE" -d project
 
           echo "✅ Project extracted"
-          find project -maxdepth 3 -type f -name "gradlew" -print
+
+          SETTINGS=$(find project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -1)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "❌ settings.gradle not found"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "✅ Android project found: $PROJECT_DIR"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -32,30 +43,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Find Gradle project
-        run: |
-          GRADLEW=$(find project -type f -name "gradlew" | head -1)
-
-          if [ -z "$GRADLEW" ]; then
-            echo "❌ gradlew not found"
-            echo "The uploaded ZIP does not contain an Android Gradle project."
-            exit 1
-          fi
-
-          chmod +x "$GRADLEW"
-
-          GRADLE_DIR=$(dirname "$GRADLEW")
-          echo "GRADLE_DIR=$GRADLE_DIR" >> "$GITHUB_ENV"
-
-          echo "✅ Gradle project found: $GRADLE_DIR"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.3.1"
 
       - name: Build APK
         run: |
-          cd "$GRADLE_DIR"
-          ./gradlew assembleDebug --no-daemon
+          cd "$PROJECT_DIR"
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
